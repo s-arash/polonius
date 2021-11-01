@@ -9,6 +9,7 @@ use crate::test_util::{
     assert_checkers_match, assert_equal, assert_outputs_match, location_insensitive_checker_for,
     naive_checker_for, opt_checker_for,
 };
+use itertools::Itertools;
 use polonius_engine::Algorithm;
 use rustc_hash::FxHashMap;
 use std::error::Error;
@@ -325,6 +326,7 @@ fn smoke_test_errors() {
         let location_insensitive = Output::compute(&facts, Algorithm::LocationInsensitive, true);
         let naive = Output::compute(&facts, Algorithm::Naive, true);
         let opt = Output::compute(&facts, Algorithm::DatafrogOpt, true);
+        let infer = Output::compute(&facts, Algorithm::InferOpt, true);
 
         // We have to find errors with every analysis
         assert!(
@@ -342,11 +344,20 @@ fn smoke_test_errors() {
             "DatafrogOpt didn't find errors for '{}'",
             test_fn
         );
+        assert!(
+            !infer.errors.is_empty(),
+            "InferOpt didn't find errors for '{}'",
+            test_fn
+        );
+
+        println!("subset errors: \n{}", infer.subset_errors.iter().map(|x| format!("{:?}", x)).join("\n"));
 
         // But not subset errors...
         assert!(location_insensitive.subset_errors.is_empty());
         assert!(naive.subset_errors.is_empty());
         assert!(opt.subset_errors.is_empty());
+        assert!(infer.subset_errors.is_empty());
+
     }
 }
 
@@ -816,6 +827,11 @@ fn successes_in_move_errors_dataset() {
         assert!(opt.errors.is_empty());
         assert!(opt.subset_errors.is_empty());
         assert!(opt.move_errors.is_empty());
+
+        let infer = Output::compute(&facts, Algorithm::InferOpt, true);
+        assert!(infer.errors.is_empty());
+        assert!(infer.subset_errors.is_empty());
+        assert!(infer.move_errors.is_empty());
     }
 }
 

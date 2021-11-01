@@ -12,3 +12,4 @@ keywords = ["compiler", "borrowck", "datalog"]
 datafrog = "2.0.0"
 rustc-hash = "1.0.0"
 log = "0.4"
+infer = {path = "../../infer/infer"}

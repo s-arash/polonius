@@ -5,6 +5,9 @@ extern crate datafrog;
 extern crate log;
 extern crate rustc_hash;
 
+#[macro_use]
+extern crate infer;
+
 mod facts;
 mod output;
 

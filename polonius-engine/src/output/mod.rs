@@ -20,6 +20,7 @@ mod initialization;
 mod liveness;
 mod location_insensitive;
 mod naive;
+mod infer_opt;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Algorithm {
@@ -40,19 +41,23 @@ pub enum Algorithm {
     /// Combination of the fast `LocationInsensitive` pre-pass, followed by
     /// the more expensive `DatafrogOpt` variant.
     Hybrid,
+
+    /// the algorithm implemented using infer
+    InferOpt,
 }
 
 impl Algorithm {
     /// Optimized variants that ought to be equivalent to "naive"
     pub const OPTIMIZED: &'static [Algorithm] = &[Algorithm::DatafrogOpt];
 
-    pub fn variants() -> [&'static str; 5] {
+    pub fn variants() -> [&'static str; 6] {
         [
             "Naive",
             "DatafrogOpt",
             "LocationInsensitive",
             "Compare",
             "Hybrid",
+            "InferOpt"
         ]
     }
 }
@@ -63,6 +68,7 @@ impl ::std::str::FromStr for Algorithm {
         match s.to_lowercase().as_ref() {
             "naive" => Ok(Algorithm::Naive),
             "datafrogopt" => Ok(Algorithm::DatafrogOpt),
+            "inferopt" => Ok(Algorithm::InferOpt),
             "locationinsensitive" => Ok(Algorithm::LocationInsensitive),
             "compare" => Ok(Algorithm::Compare),
             "hybrid" => Ok(Algorithm::Hybrid),
@@ -301,6 +307,7 @@ impl<T: FactTypes> Output<T> {
             }
             Algorithm::Naive => naive::compute(&ctx, &mut result),
             Algorithm::DatafrogOpt => datafrog_opt::compute(&ctx, &mut result),
+            Algorithm::InferOpt => infer_opt::compute(&ctx, &mut result),
             Algorithm::Hybrid => {
                 // Execute the fast `LocationInsensitive` computation as a pre-pass:
                 // if it finds no possible errors, we don't need to do the more complex
