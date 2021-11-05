@@ -327,6 +327,8 @@ fn smoke_test_errors() {
         let naive = Output::compute(&facts, Algorithm::Naive, true);
         let opt = Output::compute(&facts, Algorithm::DatafrogOpt, true);
         let infer = Output::compute(&facts, Algorithm::InferOpt, true);
+        let infer_naive = Output::compute(&facts, Algorithm::InferOpt, true);
+
 
         // We have to find errors with every analysis
         assert!(
@@ -349,6 +351,11 @@ fn smoke_test_errors() {
             "InferOpt didn't find errors for '{}'",
             test_fn
         );
+        assert!(
+            !infer_naive.errors.is_empty(),
+            "InferOpt didn't find errors for '{}'",
+            test_fn
+        );
 
         println!("subset errors: \n{}", infer.subset_errors.iter().map(|x| format!("{:?}", x)).join("\n"));
 
@@ -357,6 +364,8 @@ fn smoke_test_errors() {
         assert!(naive.subset_errors.is_empty());
         assert!(opt.subset_errors.is_empty());
         assert!(infer.subset_errors.is_empty());
+        assert!(infer_naive.subset_errors.is_empty());
+
 
     }
 }

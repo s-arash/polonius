@@ -20,5 +20,7 @@ log             = "0.4"
 petgraph        = "0.4.13"
 pico-args       = "0.2"
 itertools       = "0.10"
+mimalloc = { version = "0.1.24", default-features = false }
+
 
 [workspace]

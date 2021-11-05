@@ -444,8 +444,18 @@ pub(super) fn compute<T: FactTypes>(
             );
         }
 
+        println!("subset_placeholder len: {}", subset_placeholder.complete().len());
+        println!("dying_can_reach len: {}", dying_can_reach_o2q.clone().complete().len());
+        println!("loan_live_at len: {}", loan_live_at.clone().complete().len());
+        println!("live_to_dying_regions len: {}", live_to_dying_regions_o2pq.complete().len());
+        println!("dying_can_reach_live len: {}", dying_can_reach_live.complete().len());
+        println!("subset_o1p len: {}", subset_o1p.clone().complete().len());
+        println!("origin_contains_loan_on_entry len: {}", origin_contains_loan_on_entry_op.clone().complete().len());
+        println!("dying_can_reach_origins len: {}", dying_can_reach_origins.complete().len());
+
         if result.dump_enabled {
             let subset_o1p = subset_o1p.complete();
+            
             assert!(
                 subset_o1p
                     .iter()
@@ -484,7 +494,7 @@ pub(super) fn compute<T: FactTypes>(
         (errors.complete(), subset_errors.complete())
     };
 
-    info!(
+    println!(
         "analysis done: {} `errors` tuples, {} `subset_errors` tuples, {:?}",
         errors.len(),
         subset_errors.len(),

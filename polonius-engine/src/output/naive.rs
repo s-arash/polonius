@@ -10,7 +10,7 @@
 
 //! A version of the Naive datalog analysis using Datafrog.
 
-use datafrog::{Iteration, Relation, RelationLeaper};
+use datafrog::{Iteration, Relation, RelationLeaper, Variable};
 use std::time::Instant;
 
 use crate::facts::FactTypes;
@@ -247,9 +247,17 @@ pub(super) fn compute<T: FactTypes>(
             );
         }
 
+        // println!("subset len: {}", variable_tuples_count(&subset));
+        // println!("subset.complete len: {}", subset.clone().complete().len());
+        println!("loan_live_at len: {}", variable_tuples_count(&loan_live_at));
+
+        println!("origin_contains_loan_on_entry len: {}", variable_tuples_count(&origin_contains_loan_on_entry_op));
+        println!("subset_errors len: {}", variable_tuples_count(&subset_errors));
+        println!("errors len: {}", variable_tuples_count(&errors));
         // Handle verbose output data
-        if result.dump_enabled {
+        if true || result.dump_enabled {
             let subset = subset.complete();
+            println!("subset len: {}", subset.len());
             assert!(
                 subset
                     .iter()
@@ -288,7 +296,7 @@ pub(super) fn compute<T: FactTypes>(
         (errors.complete(), subset_errors.complete())
     };
 
-    info!(
+    println!(
         "analysis done: {} `errors` tuples, {} `subset_errors` tuples, {:?}",
         errors.len(),
         subset_errors.len(),
@@ -296,4 +304,9 @@ pub(super) fn compute<T: FactTypes>(
     );
 
     (errors, subset_errors)
+}
+
+fn variable_tuples_count<T: Ord>(v: &Variable<T>) -> usize {
+    v.stable.borrow().iter().fold(0, |x,y| x + y.len()) +
+    v.recent.borrow().len()
 }
