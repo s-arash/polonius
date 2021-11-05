@@ -20,7 +20,7 @@ fn relation_contains<T: Ord>(r: &Relation<T>, tuple: &T) -> bool {
   r.elements.binary_search(tuple).is_ok()
 }
 
-fn relation_contains2<T: Ord + Copy>(r: &Relation<T>, tuple: &T) -> bool {
+fn _relation_contains2<T: Ord + Copy>(r: &Relation<T>, tuple: &T) -> bool {
   let mut slice: &[T] = &r.elements[..];
 
   let tuple = *tuple;
@@ -89,20 +89,14 @@ pub(super) fn compute<T: FactTypes>(
         //     iteration.variable::<((T::Origin, T::Point), T::Loan)>("loan_issued_at_op");
 
         let res = infer_run!{
+            #![include_rule_times]
             struct InferOptProg<T: FactTypes>;
-
-            // relation origin_live_on_entry(T::Origin, T::Point);
-            // origin_live_on_entry(*o, *p) <-- for (o, p) in ctx.origin_live_on_entry.elements.iter();
-            //lattice all_origin_live_on_entry(Set<(T::Origin, T::Point)>);
-            //all_origin_live_on_entry(Set::singleton((*o, *p))) <-- origin_live_on_entry(o, p);
 
             relation cfg_edge(T::Point, T::Point);
             cfg_edge(*p1, *p2) <-- for (p1, p2) in cfg_edge_rel.iter();
             
             relation loan_killed_at(T::Loan, T::Point);
             loan_killed_at(*l, *p) <-- for (l, p) in &loan_killed_at.elements;
-            // lattice all_loan_killed_at(Set<(T::Loan, T::Point)>);
-            // all_loan_killed_at(Set::singleton((*x,*y))) <-- loan_killed_at(x,y);
             
             relation loan_issued_at(T::Origin, T::Loan, T::Point);
             loan_issued_at(*o, *l, *p) <-- for (o, l, p) in ctx.loan_issued_at.iter();
@@ -112,58 +106,39 @@ pub(super) fn compute<T: FactTypes>(
 
             relation known_placeholder_subset(T::Origin, T::Origin);
             known_placeholder_subset(*o1, *o2) <-- for (o1, o2) in known_placeholder_subset.iter();
-            // lattice all_known_placeholder_subset(Set<(T::Origin, T::Origin)>);
-            // all_known_placeholder_subset(Set::singleton((*x,*y))) <-- known_placeholder_subset(x,y);
 
             relation loan_invalidated_at(T::Loan, T::Point);
             loan_invalidated_at(*l, *p) <-- for (l, p) in ctx.loan_invalidated_at.iter();
             
-            // .decl subset(origin1, origin2, point)
-            //
             // Indicates that `origin1: origin2` at `point`.
             relation subset(T::Origin, T::Origin, T::Point);
             // let subset_o1p = iteration.variable::<((T::Origin, T::Point), T::Origin)>("subset_o1p");
 
-            // relation subset_base(T::Origin, T::Origin, T::Point);
-            // subset_base(*o1, *o2, *p) <-- for (o1, o2, p) in ctx.subset_base.iter();
-
-            // .decl origin_contains_loan_on_entry(origin, loan, point)
-            //
             // At `point`, things with `origin` may depend on data from `loan`.
             relation origin_contains_loan_on_entry(T::Origin, T::Loan, T::Point);
             // let origin_contains_loan_on_entry_op = iteration
             // .variable::<((T::Origin, T::Point), T::Loan)>("origin_contains_loan_on_entry_op");
             
-            // .decl loan_live_at(loan, point)
-            //
             // True if the restrictions of the `loan` need to be enforced at `point`.
             relation loan_live_at(T::Loan, T::Point);
             // let loan_live_at = iteration.variable::<((T::Loan, T::Point), ())>("loan_live_at");
             
-            // .decl live_to_dying_regions(origin1, origin2, point1, point2)
-            //
             // The origins `origin1` and `origin2` are "live to dead"
             // on the edge `point1 -> point2` if:
-            //
             // - In `point1`, `origin1` <= `origin2`
             // - In `point2`, `origin1` is live but `origin2` is dead.
-            //
             // In that case, `point2` would like to add all the
             // live things reachable from `origin2` to `origin1`.
             relation live_to_dying_regions(T::Origin, T::Origin, T::Point, T::Point);
             // let live_to_dying_regions_o2pq = iteration
             // .variable::<((T::Origin, T::Point, T::Point), T::Origin)>("live_to_dying_regions_o2pq");
             
-            // .decl dying_region_requires((origin, point1, point2), loan)
-            //
             // The `origin` requires `loan`, but the `origin` goes dead
             // along the edge `point1 -> point2`.
             relation dying_region_requires(T::Origin, T::Point, T::Point, T::Loan);
             // let dying_region_requires = iteration
             // .variable::<((T::Origin, T::Point, T::Point), T::Loan)>("dying_region_requires");
             
-            // .decl dying_can_reach_origins(origin, point1, point2)
-            //
             // Contains dead origins where we are interested
             // in computing the transitive closure of things they
             // can reach.
@@ -174,8 +149,6 @@ pub(super) fn compute<T: FactTypes>(
             // let dying_can_reach_origins =
             // iteration.variable::<((T::Origin, T::Point), T::Point)>("dying_can_reach_origins");
             
-            // .decl dying_can_reach(origin1, origin2, point1, point2)
-            //
             // Indicates that `origin1`, which is dead
             // in `point2`, can reach `origin2` in `point1`.
             //
@@ -187,8 +160,6 @@ pub(super) fn compute<T: FactTypes>(
             // iteration.variable::<((T::Origin, T::Point), (T::Origin, T::Point))>("dying_can_reach");
             // let dying_can_reach_1 = iteration.variable_indistinct("dying_can_reach_1");
             
-            // .decl dying_can_reach_live(origin1, origin2, point1, point2)
-            //
             // Indicates that, along the edge `point1 -> point2`, the dead (in `point2`)
             // `origin1` can reach the live (in `point2`) `origin2` via a subset
             // relation. This is a subset of the full `dying_can_reach`
@@ -198,8 +169,6 @@ pub(super) fn compute<T: FactTypes>(
             // let dying_can_reach_live = iteration
             // .variable::<((T::Origin, T::Point, T::Point), T::Origin)>("dying_can_reach_live");
             
-            // .decl dead_borrow_region_can_reach_root((origin, point), loan)
-            //
             // Indicates a "borrow region" `origin` at `point` which is not live on
             // entry to `point`.
             // TODO what is going on here?
@@ -207,14 +176,12 @@ pub(super) fn compute<T: FactTypes>(
             // let dead_borrow_region_can_reach_root = iteration
             // .variable::<((T::Origin, T::Point), T::Loan)>("dead_borrow_region_can_reach_root");
             
-            // .decl dead_borrow_region_can_reach_dead((origin2, point), loan)
             relation dead_borrow_region_can_reach_dead((T::Origin, T::Point), T::Loan);
             // let dead_borrow_region_can_reach_dead = iteration
             // .variable::<((T::Origin, T::Point), T::Loan)>("dead_borrow_region_can_reach_dead");
             // let dead_borrow_region_can_reach_dead_1 =
             // iteration.variable_indistinct("dead_borrow_region_can_reach_dead_1");
             
-            // .decl errors(loan, point)
             relation errors(T::Loan, T::Point);
             // let errors = iteration.variable("errors");
             relation subset_errors(T::Origin, T::Origin, T::Point);
@@ -241,12 +208,7 @@ pub(super) fn compute<T: FactTypes>(
             //     .map(|&(origin, point)| ((origin, point), ())),
             // );
             
-            
-            // subset(origin1, origin2, point) :-
-            //   subset_base(origin1, origin2, point).
-
             subset(*origin1, *origin2, *point) <--
-              // subset_base(origin1, origin2, point) if origin1 != origin2;
               for (origin1, origin2, point) in ctx.subset_base.iter();
 
             // subset_o1p.extend(
@@ -255,8 +217,6 @@ pub(super) fn compute<T: FactTypes>(
             //     .map(|&(origin1, origin2, point)| ((origin1, point), origin2)),
             // );
             
-            // origin_contains_loan_on_entry(origin, loan, point) :-
-            //   loan_issued_at(origin, loan, point).
             origin_contains_loan_on_entry(*origin, *loan, *point) <--
               loan_issued_at(origin, loan, point);
             // origin_contains_loan_on_entry(origin, loan, point) <--
@@ -292,20 +252,13 @@ pub(super) fn compute<T: FactTypes>(
             //     ((origin2, point), origin1)
             // });
 
-            // live_to_dying_regions(origin1, origin2, point1, point2) :-
-            //   subset(origin1, origin2, point1),
-            //   cfg_edge(point1, point2),
-            //   origin_live_on_entry(origin1, point2),
-            //   !origin_live_on_entry(origin2, point2).
+            // ---------------------------->
             live_to_dying_regions(*origin1, *origin2, *point1, *point2) <--
               subset(origin1, origin2, point1),
               cfg_edge(point1, point2),
-              // origin_live_on_entry(origin1, point2)
               if relation_contains(&ctx.origin_live_on_entry, &(*origin1, *point2)),
               if !relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2));
-              // all_origin_live_on_entry(origin_live_on_entry_all) if !origin_live_on_entry_all.contains(&(*origin2, *point2));
-            //   !origin_live_on_entry(origin2, point2);
-
+            
             // live_to_dying_regions_o2pq.from_leapjoin(
             //     &subset_o1p,
             //     (
@@ -315,19 +268,34 @@ pub(super) fn compute<T: FactTypes>(
             //     ),
             //     |&((origin1, point1), origin2), &point2| ((origin2, point1, point2), origin1),
             // );
+            // <----------------------------
 
-            // dying_region_requires((origin, point1, point2), loan) :-
-            //   origin_contains_loan_on_entry(origin, loan, point1),
-            //   !loan_killed_at(loan, point1),
-            //   cfg_edge(point1, point2),
-            //   !origin_live_on_entry(origin, point2).
+            // ---------------------------->
+            subset(*origin1, *origin2, *point2) <--
+              subset(origin1, origin2, point1),
+              cfg_edge(point1, point2),
+              if relation_contains(&ctx.origin_live_on_entry, &(*origin1, *point2)),
+              if relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2));
+
+            // Carry `origin1 <= origin2` from `point1` into `point2` if both `origin1` and
+            // `origin2` are live in `point2`.
+            // subset_o1p.from_leapjoin(
+            //     &subset_o1p,
+            //     (
+            //         cfg_edge_rel.extend_with(|&((_, point1), _)| point1),
+            //         origin_live_on_entry_rel.extend_with(|&((origin1, _), _)| origin1),
+            //         origin_live_on_entry_rel.extend_with(|&((_, _), origin2)| origin2),
+            //     ),
+            //     |&((origin1, _point1), origin2), &point2| ((origin1, point2), origin2),
+            // );
+            // <----------------------------
+
             dying_region_requires(*origin, *point1, *point2, *loan) <--
-              origin_contains_loan_on_entry(origin, loan, point1)
-              if !relation_contains(&ctx.loan_killed_at, &(*loan, *point1)),
-              // all_loan_killed_at(all_loan_killed_at) if !all_loan_killed_at.contains(&(*loan, *point1)),
-              cfg_edge(point1, point2)
+              origin_contains_loan_on_entry(origin, loan, point1),
+              // if !relation_contains(&ctx.loan_killed_at, &(*loan, *point1)),
+              loan_killed_at(loan, point1),
+              cfg_edge(point1, point2),
               if !relation_contains(&ctx.origin_live_on_entry, &(*origin, *point2));
-              //all_origin_live_on_entry(all_origin_live_on_entry) if !all_origin_live_on_entry.contains(&(*origin, *point2));
             // dying_region_requires.from_leapjoin(
             //     &origin_contains_loan_on_entry_op,
             //     (
@@ -338,8 +306,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&((origin, point1), loan), &point2| ((origin, point1, point2), loan),
             // );
 
-            // dying_can_reach_origins(origin2, point1, point2) :-
-            //   live_to_dying_regions(_, origin2, point1, point2).
             dying_can_reach_origins(*origin2, *point1, *point2) <--
               live_to_dying_regions(_origin1, origin2, point1, point2);            
             // dying_can_reach_origins.from_map(
@@ -347,8 +313,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&((origin2, point1, point2), _origin1)| ((origin2, point1), point2),
             // );
 
-            // dying_can_reach_origins(origin, point1, point2) :-
-            //   dying_region_requires(origin, point1, point2, _loan).
             dying_can_reach_origins(*origin, *point1, *point2) <--
               dying_region_requires(origin, point1, point2, _loan);
             // dying_can_reach_origins.from_map(
@@ -356,9 +320,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&((origin, point1, point2), _loan)| ((origin, point1), point2),
             // );
 
-            // dying_can_reach(origin1, origin2, point1, point2) :-
-            //   dying_can_reach_origins(origin1, point1, point2),
-            //   subset(origin1, origin2, point1).
             dying_can_reach(*origin1, *origin2, *point1, *point2) <--
               dying_can_reach_origins(origin1, point1, point2),
               subset(origin1, origin2, point1);
@@ -368,14 +329,10 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(origin1, point1), &point2, &origin2| ((origin2, point2), (origin1, point1)),
             // );
 
-            // dying_can_reach(origin1, origin3, point1, point2) :-
-            //   dying_can_reach(origin1, origin2, point1, point2),
-            //   !origin_live_on_entry(origin2, point2),
-            //   subset(origin2, origin3, point1).
             dying_can_reach(*origin1, *origin3, *point1, *point2) <--
-              dying_can_reach(origin1, origin2, point1, point2),
-              subset(origin2, origin3, point1),
-              if !relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2));
+              dying_can_reach(origin1, origin2, point1, point2)
+              if !relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2)),
+              subset(origin2, origin3, point1);
               //all_origin_live_on_entry(all_origin_live_on_entry) if !all_origin_live_on_entry.contains(&(*origin2, *point2)),
             // TODO what is this? ▿
             // This is the "transitive closure" rule, but
@@ -394,9 +351,6 @@ pub(super) fn compute<T: FactTypes>(
             //     },
             // );
 
-            // dying_can_reach_live(origin1, origin2, point1, point2) :-
-            //   dying_can_reach(origin1, origin2, point1, point2),
-            //   origin_live_on_entry(origin2, point2).
             dying_can_reach_live(*origin1, *origin2, *point1, *point2) <--
               dying_can_reach(origin1, origin2, point1, point2)
               if relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2));
@@ -407,35 +361,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(origin2, point2), &(origin1, point1), _| ((origin1, point1, point2), origin2),
             // );
 
-            // subset(origin1, origin2, point2) :-
-            //   subset(origin1, origin2, point1),
-            //   cfg_edge(point1, point2),
-            //   origin_live_on_entry(origin1, point2),
-            //   origin_live_on_entry(origin2, point2).
-            subset(*origin1, *origin2, *point2) <--
-              subset(origin1, origin2, point1),
-              cfg_edge(point1, point2),
-              // origin_live_on_entry(origin1, point2),
-              if relation_contains(&ctx.origin_live_on_entry, &(*origin1, *point2)),
-              // origin_live_on_entry(origin2, point2);
-              if relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point2));
-
-            
-            // Carry `origin1 <= origin2` from `point1` into `point2` if both `origin1` and
-            // `origin2` are live in `point2`.
-            // subset_o1p.from_leapjoin(
-            //     &subset_o1p,
-            //     (
-            //         cfg_edge_rel.extend_with(|&((_, point1), _)| point1),
-            //         origin_live_on_entry_rel.extend_with(|&((origin1, _), _)| origin1),
-            //         origin_live_on_entry_rel.extend_with(|&((_, _), origin2)| origin2),
-            //     ),
-            //     |&((origin1, _point1), origin2), &point2| ((origin1, point2), origin2),
-            // );
-
-            // subset(origin1, origin3, point2) :-
-            //   live_to_dying_regions(origin1, origin2, point1, point2),
-            //   dying_can_reach_live(origin2, origin3, point1, point2).
             subset(*origin1, *origin3, *point2) <--
               live_to_dying_regions(origin1, origin2, point1, point2),
               dying_can_reach_live(origin2, origin3, point1, point2),
@@ -446,10 +371,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(_origin2, _point1, point2), &origin1, &origin3| ((origin1, point2), origin3),
             // );
 
-            // origin_contains_loan_on_entry(origin2, loan, point2) :-
-            //   dying_region_requires(origin1, loan, point1, point2),
-            //   dying_can_reach_live(origin1, origin2, point1, point2).
-            
             origin_contains_loan_on_entry(*origin2, *loan, *point2) <--
               dying_region_requires(origin1, point1, point2, loan),
               dying_can_reach_live(origin1, origin2, point1, point2);
@@ -464,15 +385,9 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(_origin1, _point1, point2), &loan, &origin2| ((origin2, point2), loan),
             // );
 
-            // origin_contains_loan_on_entry(origin, loan, point2) :-
-            //   origin_contains_loan_on_entry(origin, loan, point1),
-            //   !loan_killed_at(loan, point1),
-            //   cfg_edge(point1, point2),
-            //   origin_live_on_entry(origin, point2).
             origin_contains_loan_on_entry(*origin, *loan, *point2) <--
               origin_contains_loan_on_entry(origin, loan, point1)
               if !relation_contains(&ctx.loan_killed_at, &(*loan, *point1)),
-              // all_loan_killed_at(all_loan_killed_at) if !all_loan_killed_at.contains(&(*loan, *point1)),
               cfg_edge(point1, point2),
               if relation_contains(&ctx.origin_live_on_entry, &(*origin, *point2));
               // origin_live_on_entry(origin, point2);
@@ -487,35 +402,24 @@ pub(super) fn compute<T: FactTypes>(
             // );
 
 
-            // dead_borrow_region_can_reach_root((origin, point), loan) :-
-            //   loan_issued_at(origin, loan, point),
-            //   !origin_live_on_entry(origin, point).
             dead_borrow_region_can_reach_root((*origin, *point), *loan) <--
               loan_issued_at(origin, loan, point)
               if !relation_contains(&ctx.origin_live_on_entry, &(*origin, *point));
-              //all_origin_live_on_entry(all_origin_live_on_entry) if !all_origin_live_on_entry.contains(&(*origin, *point));
             // dead_borrow_region_can_reach_root.from_antijoin(
             //     &loan_issued_at_op,
             //     &origin_live_on_entry_rel,
             //     |&(origin, point), &loan| ((origin, point), loan),
             // );
 
-            // dead_borrow_region_can_reach_dead((origin, point), loan) :-
-            //   dead_borrow_region_can_reach_root((origin, point), loan).
             dead_borrow_region_can_reach_dead((*origin, *point), *loan) <--
               dead_borrow_region_can_reach_root(?(origin, point), loan);
             // dead_borrow_region_can_reach_dead
             //     .from_map(&dead_borrow_region_can_reach_root, |&tuple| tuple);
 
-            // dead_borrow_region_can_reach_dead((origin2, point), loan) :-
-            //   dead_borrow_region_can_reach_dead(origin1, loan, point),
-            //   subset(origin1, origin2, point),
-            //   !origin_live_on_entry(origin2, point).
             dead_borrow_region_can_reach_dead((*origin2, *point), *loan) <--
               dead_borrow_region_can_reach_dead(?(origin1, point), loan),
               subset(origin1, origin2, point)
               if !relation_contains(&ctx.origin_live_on_entry, &(*origin2, *point));
-              //all_origin_live_on_entry(all_origin_live_on_entry) if !all_origin_live_on_entry.contains(&(*origin2, *point));
             // dead_borrow_region_can_reach_dead_1.from_join(
             //     &dead_borrow_region_can_reach_dead,
             //     &subset_o1p,
@@ -527,23 +431,15 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(origin2, point), &loan| ((origin2, point), loan),
             // );
 
-            // loan_live_at(loan, point) :-
-            //   origin_contains_loan_on_entry(origin, loan, point),
-            //   origin_live_on_entry(origin, point).
             loan_live_at(*loan, *point) <--
               origin_contains_loan_on_entry(origin, loan, point)
               if relation_contains(&ctx.origin_live_on_entry, &(*origin, *point));
-              // origin_live_on_entry(origin, point);
             // loan_live_at.from_join(
             //     &origin_contains_loan_on_entry_op,
             //     &origin_live_on_entry_var,
             //     |&(_origin, point), &loan, _| ((loan, point), ()),
             // );
 
-            // loan_live_at(loan, point) :-
-            //   dead_borrow_region_can_reach_dead(origin1, loan, point),
-            //   subset(origin1, origin2, point),
-            //   origin_live_on_entry(origin2, point).
             loan_live_at(*loan, *point) <--
               dead_borrow_region_can_reach_dead(?(origin1, point), loan),
               subset(origin1, origin2, point)
@@ -560,9 +456,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(_origin2, point), &loan, _| ((loan, point), ()),
             // );
 
-            // errors(loan, point) :-
-            //   loan_invalidated_at(loan, point),
-            //   loan_live_at(loan, point).
             errors(*loan, *point) <--
               loan_invalidated_at(loan, point),
               loan_live_at(loan, point);
@@ -572,9 +465,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(loan, point), _, _| (loan, point),
             // );
 
-            // subset_placeholder(Origin1, Origin2, Point) :-
-            //     subset(Origin1, Origin2, Point),
-            //     placeholder_origin(Origin1).
             subset_placeholder(*origin1, *origin2, *point) <--
                 subset(origin1, origin2, point),
                 placeholder_origin(origin1);
@@ -593,9 +483,6 @@ pub(super) fn compute<T: FactTypes>(
             // We compute the transitive closure of the placeholder origins, so we
             // maintain the invariant from the rule above that `Origin1` is a placeholder origin.
             //
-            // subset_placeholder(Origin1, Origin3, Point) :-
-            //     subset_placeholder(Origin1, Origin2, Point),
-            //     subset(Origin2, Origin3, Point).
             subset_placeholder(*origin1, *origin3, *point) <--
                 subset_placeholder(origin1, origin2, point),
                 subset(origin2, origin3, point), if origin1 != origin3;
@@ -605,10 +492,6 @@ pub(super) fn compute<T: FactTypes>(
             //     |&(_origin2, point), &origin1, &origin3| (origin1, origin3, point),
             // );
 
-            // subset_error(Origin1, Origin2, Point) :-
-            //     subset_placeholder(Origin1, Origin2, Point),
-            //     placeholder_origin(Origin2),
-            //     !known_placeholder_subset(Origin1, Origin2).
             subset_errors(*origin1, *origin2, *point) <--
                 subset_placeholder(origin1, origin2, point),
                 placeholder_origin(origin2)
